@@ -3,9 +3,11 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	db "gin-app/db/sqlc"
 	"io"
 	"log"
 	"net/http"
@@ -18,6 +20,18 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+var (
+	conf *oauth2.Config
+)
+
+type Service struct {
+	Queries *db.Queries
+}
+
+func NewService(queries *db.Queries) *Service {
+	return &Service{Queries: queries}
+}
+
 type User struct {
 	Sub           string `json:"sub"`
 	Name          string `json:"name"`
@@ -29,8 +43,6 @@ type User struct {
 	EmailVerified bool   `json:"email_verified"`
 	Gender        string `json:"gender"`
 }
-
-var conf *oauth2.Config
 
 func randToken() string {
 	b := make([]byte, 32)
@@ -57,7 +69,7 @@ func init() {
 	}
 }
 
-func LoginHandler(c *gin.Context) {
+func (s *Service) LoginHandler(c *gin.Context) {
 	state := randToken()
 	session := sessions.Default(c)
 	session.Set("state", state)
@@ -65,7 +77,7 @@ func LoginHandler(c *gin.Context) {
 	c.Redirect(http.StatusFound, conf.AuthCodeURL(state))
 }
 
-func AuthHandler(c *gin.Context) {
+func (s *Service) AuthHandler(c *gin.Context) {
 	session := sessions.Default(c)
 	retrievedState := session.Get("state")
 	if retrievedState != c.Query("state") {
@@ -103,8 +115,48 @@ func AuthHandler(c *gin.Context) {
 		return
 	}
 
-	session.Set("user", user.Email)
-	session.Save()
+	createdUser, err := s.Queries.GetUserByEmail(context.Background(), user.Email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			params := db.CreateUserParams{
+				Name:    user.Name,
+				Email:   user.Email,
+				Picture: sql.NullString{String: user.Picture, Valid: true},
+			}
+			createdUser, err = s.Queries.CreateUser(context.Background(), params)
+			if err != nil {
+				log.Printf("Error creating user: %v", err)
+				c.AbortWithError(http.StatusInternalServerError, err)
+				return
+			}
+		} else {
+			log.Printf("Error getting user: %v", err)
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+	}
 
-	c.Redirect(http.StatusFound, "/")
+	session.Set("email", createdUser.Email)
+	session.Set("name", createdUser.Name)
+	if err := session.Save(); err != nil {
+		log.Printf("Error saving session: %v", err)
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	c.Redirect(http.StatusFound, os.Getenv("LOGIN_REDIRECT_URL"))
+}
+
+func (s *Service) LogoutHandler(c *gin.Context) {
+	session := sessions.Default(c)
+
+	session.Clear()
+
+	if err := session.Save(); err != nil {
+		log.Printf("Error saving session during logout: %v", err)
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	c.Redirect(http.StatusFound, os.Getenv("LOGOUT_REDIRECT_URL"))
 }

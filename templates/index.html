@@ -33,11 +33,24 @@
                   <!-- <a href="#" class="c-link c-link--list">Services</a> -->
                 </li>
               </ul>
-              <a href="/auth/google/login">
+              {{ if .user }}
+              <a href="/auth/logout">
                 <button class="c-button c-button--small c-button--secondary">
-                  Login
+                  Logout
                 </button>
               </a>
+              {{ else }}
+              <a href="/auth/google/login">
+                <button class="c-button c-button--small c-button--secondary">
+                  Login as Applicant
+                </button>
+              </a>
+              <a href="/auth/google/login">
+                <button class="c-button c-button--small c-button--secondary" style="margin-left: 20px;">
+                  Login as Recruiter
+                </button>
+              </a>
+              {{ end }}
             </div>
           </nav>
         </div>
@@ -52,6 +65,9 @@
               <h1 class="heading heading--1 heading--light">
                 Recruitment Portal
               </h1>
+              {{ if .user }}
+                  <h2 class="heading--light">Welcome, {{ .user.name }}!</h2>
+              {{ end }}
               <h4 class="heading heading--4 heading--blue">
                 Personalized experiences are proven to increase conversions.
                 Apply makes it easy. Let's make the internet delightfully human.
@@ -67,7 +83,7 @@
             <div class="c-hero__img-holder">
               <img
                 class="c-hero__img"
-                src="img/dashboard.png"
+                src="/static/img/dashboard.png"
                 alt="Dashboard"
               />
             </div>
@@ -104,7 +120,7 @@
                 </p>
               </div>
               <div class="c-card__img-holder">
-                <img class="c-card__img" src="img/card-1.png" alt="" />
+                <img class="c-card__img" src="/static/img/card-1.png" alt="" />
               </div>
             </article>
 
@@ -123,7 +139,7 @@
               </div>
 
               <div class="c-card__img-holder">
-                <img class="c-card__img" src="img/card-2.png" alt="" />
+                <img class="c-card__img" src="/static/img/card-2.png" alt="" />
               </div>
             </article>
 
@@ -142,7 +158,7 @@
               </div>
 
               <div class="c-card__img-holder">
-                <img class="c-card__img" src="img/card-3.png" alt="" />
+                <img class="c-card__img" src="/static/img/card-3.png" alt="" />
               </div>
             </article>
           </div>
@@ -154,7 +170,7 @@
           <div class="box box--grid">
             <article class="c-feature">
               <div class="c-feature__img-holder">
-                <img class="c-feature__img" src="img/feature-1.png" alt="" />
+                <img class="c-feature__img" src="/static/img/feature-1.png" alt="" />
               </div>
               <div class="c-feature__content">
                 <h3 class="c-feature__title heading heading--3">
@@ -172,7 +188,7 @@
 
             <article class="c-feature">
               <div class="c-feature__img-holder">
-                <img class="c-feature__img" src="img/feature-2.png" alt="" />
+                <img class="c-feature__img" src="/static/img/feature-2.png" alt="" />
               </div>
               <div class="c-feature__content">
                 <h3 class="c-feature__title heading heading--3">
@@ -190,7 +206,7 @@
 
             <article class="c-feature">
               <div class="c-feature__img-holder">
-                <img class="c-feature__img" src="img/feature-3.png" alt="" />
+                <img class="c-feature__img" src="/static/img/feature-3.png" alt="" />
               </div>
               <div class="c-feature__content">
                 <h3 class="c-feature__title heading heading--3">
@@ -377,7 +393,7 @@
               </div>
             </a>
             <p class="c-paragraph c-footer__text">
-              © 2020 Apply, all rights reserved
+              © 2025 Portal, all rights reserved
             </p>
           </div>
           <div class="c-footer__box">
@@ -385,20 +401,20 @@
               <a href="#">
                 <img
                   class="c-footer__icon"
-                  src="img/instagram.svg"
+                  src="/static/img/instagram.svg"
                   alt="Instagram"
               /></a>
               <a href="#">
                 <img
                   class="c-footer__icon"
-                  src="img/twitter.svg"
+                  src="/static/img/twitter.svg"
                   alt="Twitter"
                 />
               </a>
               <a href="#">
                 <img
                   class="c-footer__icon"
-                  src="img/facebook.svg"
+                  src="/static/img/facebook.svg"
                   alt="Facebook"
               /></a>
             </div>
