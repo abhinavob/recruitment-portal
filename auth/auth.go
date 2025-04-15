@@ -12,9 +12,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -73,6 +75,10 @@ func (s *Service) LoginHandler(c *gin.Context) {
 	state := randToken()
 	session := sessions.Default(c)
 	session.Set("state", state)
+
+	role := c.Param("role")
+	session.Set("role", role)
+
 	session.Save()
 	c.Redirect(http.StatusFound, conf.AuthCodeURL(state))
 }
@@ -118,10 +124,19 @@ func (s *Service) AuthHandler(c *gin.Context) {
 	createdUser, err := s.Queries.GetUserByEmail(context.Background(), user.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			role := session.Get("role")
+			if role == "recruiter" {
+				role = "pending"
+			} else if role == "admin" {
+				c.Redirect(http.StatusFound, "/")
+				return
+			}
+
 			params := db.CreateUserParams{
 				Name:    user.Name,
 				Email:   user.Email,
 				Picture: sql.NullString{String: user.Picture, Valid: true},
+				Role:    role.(string),
 			}
 			createdUser, err = s.Queries.CreateUser(context.Background(), params)
 			if err != nil {
@@ -136,22 +151,52 @@ func (s *Service) AuthHandler(c *gin.Context) {
 		}
 	}
 
+	rand_tok := randToken()
+	_, err = s.Queries.CreateOrUpdateSession(context.Background(), db.CreateOrUpdateSessionParams{
+		UserID: uuid.NullUUID{UUID: createdUser.ID, Valid: true},
+		Token:  rand_tok,
+	})
+	if err != nil {
+		log.Printf("Error creating/updating session: %v", err)
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
 	session.Set("email", createdUser.Email)
 	session.Set("name", createdUser.Name)
+	session.Set("role", createdUser.Role)
+	session.Set("token", rand_tok)
 	if err := session.Save(); err != nil {
 		log.Printf("Error saving session: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 
-	c.Redirect(http.StatusFound, os.Getenv("LOGIN_REDIRECT_URL"))
+	c.Redirect(http.StatusFound, os.Getenv(strings.ToUpper(createdUser.Role)+"_REDIRECT_URL"))
 }
 
 func (s *Service) LogoutHandler(c *gin.Context) {
 	session := sessions.Default(c)
 
-	session.Clear()
+	token := session.Get("token")
+	email := session.Get("email")
 
+	if token != nil && email != nil {
+		user, err := s.Queries.GetUserByEmail(context.Background(), email.(string))
+		if err != nil {
+			log.Printf("Error getting user during logout: %v", err)
+		} else {
+			err = s.Queries.DeleteSession(context.Background(), db.DeleteSessionParams{
+				UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
+				Token:  token.(string),
+			})
+			if err != nil {
+				log.Printf("Error deleting session: %v", err)
+			}
+		}
+	}
+
+	session.Clear()
 	if err := session.Save(); err != nil {
 		log.Printf("Error saving session during logout: %v", err)
 		c.AbortWithError(http.StatusInternalServerError, err)

@@ -12,6 +12,15 @@ import (
 	"github.com/google/uuid"
 )
 
+const approveRecruiter = `-- name: ApproveRecruiter :exec
+UPDATE users SET role = 'recruiter' WHERE id = $1
+`
+
+func (q *Queries) ApproveRecruiter(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, approveRecruiter, id)
+	return err
+}
+
 const createOrUpdateSession = `-- name: CreateOrUpdateSession :one
 INSERT INTO sessions (user_id, token)
 VALUES ($1, $2)
@@ -35,25 +44,32 @@ func (q *Queries) CreateOrUpdateSession(ctx context.Context, arg CreateOrUpdateS
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (name, email, picture)
-VALUES ($1, $2, $3)
-RETURNING id, name, email, picture, created_at, updated_at
+INSERT INTO users (name, email, picture, role)
+VALUES ($1, $2, $3, $4)
+RETURNING id, name, email, picture, role, created_at, updated_at
 `
 
 type CreateUserParams struct {
 	Name    string
 	Email   string
 	Picture sql.NullString
+	Role    string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.Name, arg.Email, arg.Picture)
+	row := q.db.QueryRowContext(ctx, createUser,
+		arg.Name,
+		arg.Email,
+		arg.Picture,
+		arg.Role,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Email,
 		&i.Picture,
+		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -74,6 +90,86 @@ func (q *Queries) DeleteSession(ctx context.Context, arg DeleteSessionParams) er
 	return err
 }
 
+const getAllUsers = `-- name: GetAllUsers :many
+SELECT id, name, email, picture, role FROM users WHERE role IN ('applicant', 'recruiter')
+`
+
+type GetAllUsersRow struct {
+	ID      uuid.UUID
+	Name    string
+	Email   string
+	Picture sql.NullString
+	Role    string
+}
+
+func (q *Queries) GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllUsersRow
+	for rows.Next() {
+		var i GetAllUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.Picture,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPendingRecruiters = `-- name: GetPendingRecruiters :many
+SELECT id, name, email, picture FROM users WHERE role = 'pending'
+`
+
+type GetPendingRecruitersRow struct {
+	ID      uuid.UUID
+	Name    string
+	Email   string
+	Picture sql.NullString
+}
+
+func (q *Queries) GetPendingRecruiters(ctx context.Context) ([]GetPendingRecruitersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingRecruiters)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPendingRecruitersRow
+	for rows.Next() {
+		var i GetPendingRecruitersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.Picture,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSession = `-- name: GetSession :one
 SELECT user_id, token, created_at FROM sessions WHERE token = $1
 `
@@ -86,7 +182,7 @@ func (q *Queries) GetSession(ctx context.Context, token string) (Session, error)
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, name, email, picture, created_at, updated_at FROM users WHERE email = $1
+SELECT id, name, email, picture, role, created_at, updated_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -97,8 +193,18 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Name,
 		&i.Email,
 		&i.Picture,
+		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const rejectRecruiter = `-- name: RejectRecruiter :exec
+DELETE FROM users WHERE id = $1
+`
+
+func (q *Queries) RejectRecruiter(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, rejectRecruiter, id)
+	return err
 }

@@ -5,6 +5,7 @@ CREATE TABLE users (
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     picture TEXT,
+    role TEXT NOT NULL DEFAULT 'applicant' CHECK (role IN ('admin', 'recruiter', 'applicant', 'pending')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

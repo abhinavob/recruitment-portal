@@ -17,10 +17,11 @@ type Session struct {
 }
 
 type User struct {
-	ID        int32
+	ID        uuid.UUID
 	Name      string
 	Email     string
 	Picture   sql.NullString
+	Role      string
 	CreatedAt sql.NullTime
 	UpdatedAt sql.NullTime
 }
