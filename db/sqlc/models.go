@@ -6,9 +6,37 @@ package db
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+type ApplicantSkillSet struct {
+	ApplicantID uuid.UUID
+	Skills      []string
+	CreatedAt   time.Time
+}
+
+type Company struct {
+	ID          uuid.UUID
+	RecruiterID uuid.NullUUID
+	Name        string
+	Description sql.NullString
+	Logo        sql.NullString
+	CreatedAt   time.Time
+}
+
+type JobPosting struct {
+	ID          uuid.UUID
+	RecruiterID uuid.NullUUID
+	CompanyID   uuid.NullUUID
+	CompanyName string
+	Position    string
+	Skills      []string
+	Description sql.NullString
+	Salary      sql.NullString
+	CreatedAt   sql.NullTime
+}
 
 type Session struct {
 	UserID    uuid.NullUUID
@@ -23,5 +51,4 @@ type User struct {
 	Picture   sql.NullString
 	Role      string
 	CreatedAt sql.NullTime
-	UpdatedAt sql.NullTime
 }

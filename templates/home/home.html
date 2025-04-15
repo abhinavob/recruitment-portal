@@ -78,10 +78,17 @@
                 Apply makes it easy. Let's make the internet delightfully human.
               </h4>
               <div class="c-hero__button-group">
-                <button class="c-button c-button--primary">
+                {{ if .user }}
+                <a href="/{{ .user.role }}/dashboard">
+                  <button class="c-button c-button--primary">
+                    Go to Dashboard
+                  </button>
+                </a>
+                {{ end }}
+                <!-- <button class="c-button c-button--primary">
                   Request early access
-                </button>
-                <button class="c-button c-button--secondary">Learn more</button>
+                </button> -->
+                <!-- <button class="c-button c-button--secondary">Learn more</button> -->
               </div>
             </div>
 

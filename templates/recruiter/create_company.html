@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Company</title>
+</head>
+<body>
+    <h1>Create Company</h1>
+    <form method="POST" action="/recruiter/create-company/{{ .ID }}">
+        <label for="name">Company Name</label><br>
+        <input type="text" name="name" id = "name" placeholder="Enter Company Name"><br><br>
+        <label for="description">Company Description</label><br>
+        <textarea name="description" id = "description" rows="4" cols="50" placeholder="Enter Company Description"></textarea><br><br>
+        <button type="submit">Create Company</button>
+    </form>
+    <form method="POST" action="/recruiter/create-company/{{ .ID }}/cancel">
+        <button type="submit">Cancel</button>
+    </form>
+</body>
+</html>

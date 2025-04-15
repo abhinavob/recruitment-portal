@@ -10,6 +10,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const approveRecruiter = `-- name: ApproveRecruiter :exec
@@ -18,6 +19,70 @@ UPDATE users SET role = 'recruiter' WHERE id = $1
 
 func (q *Queries) ApproveRecruiter(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, approveRecruiter, id)
+	return err
+}
+
+const createCompany = `-- name: CreateCompany :one
+INSERT INTO companies (id, recruiter_id, name, description, logo)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, recruiter_id, name, description, logo, created_at
+`
+
+type CreateCompanyParams struct {
+	ID          uuid.UUID
+	RecruiterID uuid.NullUUID
+	Name        string
+	Description sql.NullString
+	Logo        sql.NullString
+}
+
+func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error) {
+	row := q.db.QueryRowContext(ctx, createCompany,
+		arg.ID,
+		arg.RecruiterID,
+		arg.Name,
+		arg.Description,
+		arg.Logo,
+	)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.RecruiterID,
+		&i.Name,
+		&i.Description,
+		&i.Logo,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createJobPost = `-- name: CreateJobPost :exec
+INSERT INTO job_postings (id, recruiter_id, company_id, company_name, position, skills, description, salary)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`
+
+type CreateJobPostParams struct {
+	ID          uuid.UUID
+	RecruiterID uuid.NullUUID
+	CompanyID   uuid.NullUUID
+	CompanyName string
+	Position    string
+	Skills      []string
+	Description sql.NullString
+	Salary      sql.NullString
+}
+
+func (q *Queries) CreateJobPost(ctx context.Context, arg CreateJobPostParams) error {
+	_, err := q.db.ExecContext(ctx, createJobPost,
+		arg.ID,
+		arg.RecruiterID,
+		arg.CompanyID,
+		arg.CompanyName,
+		arg.Position,
+		pq.Array(arg.Skills),
+		arg.Description,
+		arg.Salary,
+	)
 	return err
 }
 
@@ -46,7 +111,7 @@ func (q *Queries) CreateOrUpdateSession(ctx context.Context, arg CreateOrUpdateS
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (name, email, picture, role)
 VALUES ($1, $2, $3, $4)
-RETURNING id, name, email, picture, role, created_at, updated_at
+RETURNING id, name, email, picture, role, created_at
 `
 
 type CreateUserParams struct {
@@ -71,9 +136,17 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Picture,
 		&i.Role,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteJobPost = `-- name: DeleteJobPost :exec
+DELETE FROM job_postings WHERE id = $1
+`
+
+func (q *Queries) DeleteJobPost(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteJobPost, id)
+	return err
 }
 
 const deleteSession = `-- name: DeleteSession :exec
@@ -88,6 +161,43 @@ type DeleteSessionParams struct {
 func (q *Queries) DeleteSession(ctx context.Context, arg DeleteSessionParams) error {
 	_, err := q.db.ExecContext(ctx, deleteSession, arg.UserID, arg.Token)
 	return err
+}
+
+const getAllJobPosts = `-- name: GetAllJobPosts :many
+SELECT id, recruiter_id, company_id, company_name, position, skills, description, salary, created_at FROM job_postings
+`
+
+func (q *Queries) GetAllJobPosts(ctx context.Context) ([]JobPosting, error) {
+	rows, err := q.db.QueryContext(ctx, getAllJobPosts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobPosting
+	for rows.Next() {
+		var i JobPosting
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecruiterID,
+			&i.CompanyID,
+			&i.CompanyName,
+			&i.Position,
+			pq.Array(&i.Skills),
+			&i.Description,
+			&i.Salary,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getAllUsers = `-- name: GetAllUsers :many
@@ -129,6 +239,24 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const getCompanyByRecruiterID = `-- name: GetCompanyByRecruiterID :one
+SELECT id, recruiter_id, name, description, logo, created_at FROM companies WHERE recruiter_id = $1
+`
+
+func (q *Queries) GetCompanyByRecruiterID(ctx context.Context, recruiterID uuid.NullUUID) (Company, error) {
+	row := q.db.QueryRowContext(ctx, getCompanyByRecruiterID, recruiterID)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.RecruiterID,
+		&i.Name,
+		&i.Description,
+		&i.Logo,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const getPendingRecruiters = `-- name: GetPendingRecruiters :many
@@ -182,7 +310,7 @@ func (q *Queries) GetSession(ctx context.Context, token string) (Session, error)
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, name, email, picture, role, created_at, updated_at FROM users WHERE email = $1
+SELECT id, name, email, picture, role, created_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -195,9 +323,17 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Picture,
 		&i.Role,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const rejectCompany = `-- name: RejectCompany :exec
+DELETE FROM companies WHERE recruiter_id = $1
+`
+
+func (q *Queries) RejectCompany(ctx context.Context, recruiterID uuid.NullUUID) error {
+	_, err := q.db.ExecContext(ctx, rejectCompany, recruiterID)
+	return err
 }
 
 const rejectRecruiter = `-- name: RejectRecruiter :exec
@@ -206,5 +342,20 @@ DELETE FROM users WHERE id = $1
 
 func (q *Queries) RejectRecruiter(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, rejectRecruiter, id)
+	return err
+}
+
+const updateApplicantSkills = `-- name: UpdateApplicantSkills :exec
+INSERT INTO applicant_skill_sets (applicant_id, skills)
+VALUES ($1, $2) ON CONFLICT (applicant_id) DO UPDATE SET skills = $2
+`
+
+type UpdateApplicantSkillsParams struct {
+	ApplicantID uuid.UUID
+	Skills      []string
+}
+
+func (q *Queries) UpdateApplicantSkills(ctx context.Context, arg UpdateApplicantSkillsParams) error {
+	_, err := q.db.ExecContext(ctx, updateApplicantSkills, arg.ApplicantID, pq.Array(arg.Skills))
 	return err
 }

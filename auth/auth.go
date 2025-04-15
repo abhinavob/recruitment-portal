@@ -144,6 +144,9 @@ func (s *Service) AuthHandler(c *gin.Context) {
 				c.AbortWithError(http.StatusInternalServerError, err)
 				return
 			}
+			if role == "pending" {
+				session.Set("logo", createdUser.Picture.String)
+			}
 		} else {
 			log.Printf("Error getting user: %v", err)
 			c.AbortWithError(http.StatusInternalServerError, err)
@@ -165,6 +168,8 @@ func (s *Service) AuthHandler(c *gin.Context) {
 	session.Set("email", createdUser.Email)
 	session.Set("name", createdUser.Name)
 	session.Set("role", createdUser.Role)
+	session.Set("id", createdUser.ID.String())
+	session.Set("picture", createdUser.Picture.String)
 	session.Set("token", rand_tok)
 	if err := session.Save(); err != nil {
 		log.Printf("Error saving session: %v", err)
